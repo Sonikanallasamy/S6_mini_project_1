@@ -120,39 +120,62 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 def home():
     return {"message": "API Running"}
 
-# ✅ FIXED REGISTER (JSON)
+# ✅ UPDATED REGISTER (FIXED)
 @app.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    if len(user.password) < 6:
-        raise HTTPException(status_code=400, detail="Password too short")
+    try:
+        # Password validation
+        if len(user.password) < 6:
+            raise HTTPException(status_code=400, detail="Password too short")
 
-    if db.query(User).filter(User.username == user.username).first():
-        raise HTTPException(status_code=400, detail="Username exists")
+        if len(user.password) > 72:  # 🔥 FIX for bcrypt
+            raise HTTPException(status_code=400, detail="Password too long (max 72 characters)")
 
-    new_user = User(
-        username=user.username,
-        password=hash_password(user.password)
-    )
+        # Username validation
+        if len(user.username.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Username cannot be empty")
 
-    db.add(new_user)
-    db.commit()
+        if db.query(User).filter(User.username == user.username).first():
+            raise HTTPException(status_code=400, detail="Username already exists")
 
-    return {"message": "Registered"}
+        # Create user
+        new_user = User(
+            username=user.username,
+            password=hash_password(user.password)
+        )
 
-# LOGIN (same)
+        db.add(new_user)
+        db.commit()
+
+        return {"message": "Registered successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("REGISTER ERROR:", e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# LOGIN
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
+    try:
+        user = db.query(User).filter(User.username == form_data.username).first()
 
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
 
-    if not verify_password(form_data.password, user.password):
-        raise HTTPException(status_code=401, detail="Wrong password")
+        if not verify_password(form_data.password, user.password):
+            raise HTTPException(status_code=401, detail="Wrong password")
 
-    token = create_access_token(data={"sub": form_data.username})
+        token = create_access_token(data={"sub": form_data.username})
 
-    return {"access_token": token, "token_type": "bearer"}
+        return {"access_token": token, "token_type": "bearer"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("LOGIN ERROR:", e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 # ------------------------
 # PREDICT
@@ -163,101 +186,108 @@ async def predict(
     username: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Upload an image")
-
-    contents = await file.read()
-
-    if len(contents) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large")
-
-    filename = f"{uuid4()}.png"
-    file_path = os.path.join(UPLOAD_DIR, filename)
-
-    with open(file_path, "wb") as f:
-        f.write(contents)
-
     try:
-        image = Image.open(io.BytesIO(contents)).convert("RGB")
-        img_array = np.array(image)
+        if not file.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Upload an image")
 
-        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        contents = await file.read()
 
-        thresh = cv2.threshold(
-            blur, 0, 255,
-            cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )[1]
-    except:
-        raise HTTPException(status_code=400, detail="Invalid image")
+        if len(contents) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large")
 
-    reader = get_reader()
-    result = reader.readtext(thresh, detail=1, paragraph=True)
+        filename = f"{uuid4()}.png"
+        file_path = os.path.join(UPLOAD_DIR, filename)
 
-    raw_text = " ".join([text[1] for text in result]).lower()
+        with open(file_path, "wb") as f:
+            f.write(contents)
 
-    dosage = list(set(re.findall(
-        r'\b\d+\s?(?:mg|ml|g|mcg|mg/ml)\b',
-        raw_text
-    )))
+        try:
+            image = Image.open(io.BytesIO(contents)).convert("RGB")
+            img_array = np.array(image)
 
-    clean_text = re.sub(r'[^a-zA-Z0-9\s-]', ' ', raw_text)
-    clean_text = " ".join([w for w in clean_text.split() if len(w) > 2])
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+            blur = cv2.GaussianBlur(gray, (5, 5), 0)
 
-    stopwords = {"tablet","capsule","dosage","use","only","store","keep","away","children"}
-    clean_text = " ".join([w for w in clean_text.split() if w not in stopwords])
+            thresh = cv2.threshold(
+                blur, 0, 255,
+                cv2.THRESH_BINARY + cv2.THRESH_OTSU
+            )[1]
+        except:
+            raise HTTPException(status_code=400, detail="Invalid image")
 
-    detected_text = clean_text.strip()
+        reader = get_reader()
+        result = reader.readtext(thresh, detail=1, paragraph=True)
 
-    if not detected_text:
-        return {
-            "medicine_name": "Unknown",
-            "dosage": [],
-            "detected_text": "",
-            "status": "Possible Fake"
-        }
+        raw_text = " ".join([text[1] for text in result]).lower()
 
-    best_score = 0
-    best_match = "Unknown"
+        dosage = list(set(re.findall(
+            r'\b\d+\s?(?:mg|ml|g|mcg|mg/ml)\b',
+            raw_text
+        )))
 
-    for med in medicine_list:
-        score = max(
-            fuzz.token_set_ratio(med, detected_text),
-            fuzz.partial_ratio(med, detected_text),
-            fuzz.token_sort_ratio(med, detected_text)
+        clean_text = re.sub(r'[^a-zA-Z0-9\s-]', ' ', raw_text)
+        clean_text = " ".join([w for w in clean_text.split() if len(w) > 2])
+
+        stopwords = {"tablet","capsule","dosage","use","only","store","keep","away","children"}
+        clean_text = " ".join([w for w in clean_text.split() if w not in stopwords])
+
+        detected_text = clean_text.strip()
+
+        if not detected_text:
+            return {
+                "medicine_name": "Unknown",
+                "dosage": [],
+                "detected_text": "",
+                "status": "Possible Fake"
+            }
+
+        best_score = 0
+        best_match = "Unknown"
+
+        for med in medicine_list:
+            score = max(
+                fuzz.token_set_ratio(med, detected_text),
+                fuzz.partial_ratio(med, detected_text),
+                fuzz.token_sort_ratio(med, detected_text)
+            )
+
+            if med in detected_text:
+                score += 20
+
+            if score > best_score:
+                best_score = score
+                best_match = med
+
+        if best_score >= 70:
+            medicine_name = best_match
+            status = "Real Medicine"
+        else:
+            medicine_name = "Unknown"
+            status = "Possible Fake"
+
+        scan = ScanHistory(
+            username=username,
+            medicine_name=medicine_name,
+            detected_text=detected_text,
+            status=status,
+            image=file_path
         )
 
-        if med in detected_text:
-            score += 20
+        db.add(scan)
+        db.commit()
 
-        if score > best_score:
-            best_score = score
-            best_match = med
+        return {
+            "medicine_name": medicine_name,
+            "dosage": dosage,
+            "detected_text": detected_text,
+            "status": status
+        }
 
-    if best_score >= 70:
-        medicine_name = best_match
-        status = "Real Medicine"
-    else:
-        medicine_name = "Unknown"
-        status = "Possible Fake"
-
-    scan = ScanHistory(
-        username=username,
-        medicine_name=medicine_name,
-        detected_text=detected_text,
-        status=status,
-        image=file_path
-    )
-
-    db.add(scan)
-    db.commit()
-
-    return {
-        "medicine_name": medicine_name,
-        "dosage": dosage,
-        "detected_text": detected_text,
-        "status": status
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("PREDICT ERROR:", e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 # ------------------------
 # HISTORY
@@ -267,6 +297,11 @@ def history(
     username: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return db.query(ScanHistory).filter(
-        ScanHistory.username == username
-    ).all()
+    try:
+        return db.query(ScanHistory).filter(
+            ScanHistory.username == username
+        ).all()
+
+    except Exception as e:
+        print("HISTORY ERROR:", e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
