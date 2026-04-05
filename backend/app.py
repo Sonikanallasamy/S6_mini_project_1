@@ -313,7 +313,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-import easyocr
+
 import pandas as pd
 from PIL import Image
 import numpy as np
