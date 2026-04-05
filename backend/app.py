@@ -307,12 +307,10 @@
 #         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-
 
 import pandas as pd
 from PIL import Image
@@ -376,19 +374,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ------------------------
-# OCR (LAZY LOAD - VERY IMPORTANT)
-# ------------------------
-reader = None
-
-def get_reader():
-    global reader
-    if reader is None:
-        print("Loading EasyOCR model...")
-        reader = easyocr.Reader(['en'], gpu=False)
-    return reader
-
-# ------------------------
-# Load CSV safely
+# Load CSV
 # ------------------------
 medicine_list = []
 
@@ -491,7 +477,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 # ------------------------
-# PREDICT (SAFE VERSION)
+# PREDICT (OCR DISABLED SAFE VERSION)
 # ------------------------
 @app.post("/predict")
 async def predict(
@@ -505,7 +491,7 @@ async def predict(
 
         contents = await file.read()
 
-        if len(contents) > 3 * 1024 * 1024:  # 🔥 reduce size (Render safe)
+        if len(contents) > 3 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="File too large")
 
         filename = f"{uuid4()}.png"
@@ -514,7 +500,7 @@ async def predict(
         with open(file_path, "wb") as f:
             f.write(contents)
 
-        # Image processing
+        # Basic image processing (still useful)
         image = Image.open(io.BytesIO(contents)).convert("RGB")
         img_array = np.array(image)
 
@@ -526,20 +512,20 @@ async def predict(
             cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )[1]
 
-        # OCR
-        reader = get_reader()
-        result = reader.readtext(thresh, detail=1, paragraph=True)
-
-        raw_text = " ".join([text[1] for text in result]).lower()
+        # 🚨 OCR DISABLED
+        raw_text = ""
 
         if not raw_text:
-            return {"status": "No text detected"}
+            return {
+                "medicine_name": "Unknown",
+                "status": "OCR Disabled (Demo Mode)"
+            }
 
-        # Fuzzy matching
+        # (This part won't run unless OCR enabled)
         best_score = 0
         best_match = "Unknown"
 
-        for med in medicine_list[:5000]:  # 🔥 LIMIT for performance
+        for med in medicine_list[:5000]:
             score = fuzz.partial_ratio(med, raw_text)
 
             if score > best_score:
