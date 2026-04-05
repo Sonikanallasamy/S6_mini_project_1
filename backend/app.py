@@ -307,6 +307,291 @@
 #         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+
+
+
+
+
+
+
+
+# from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+# from fastapi.middleware.cors import CORSMiddleware
+# from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+# from sqlalchemy.orm import Session
+
+# import pandas as pd
+# from PIL import Image
+# import numpy as np
+# import io
+# import cv2
+# import re
+# import os
+# from uuid import uuid4
+# from rapidfuzz import fuzz
+# from dotenv import load_dotenv
+
+# from database import engine, SessionLocal
+# from models import Base, User, ScanHistory
+# from schemas import ScanHistoryResponse
+# from auth import hash_password, verify_password, create_access_token
+
+# from jose import jwt, JWTError
+# from fastapi.staticfiles import StaticFiles
+# from pydantic import BaseModel
+
+# # ------------------------
+# # ENV
+# # ------------------------
+# load_dotenv()
+# SECRET_KEY = os.getenv("SECRET_KEY")
+# ALGORITHM = "HS256"
+
+# if not SECRET_KEY:
+#     raise RuntimeError("SECRET_KEY not set")
+
+# # ------------------------
+# # Setup
+# # ------------------------
+# Base.metadata.create_all(bind=engine)
+# app = FastAPI()
+
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+# # ------------------------
+# # Request Models
+# # ------------------------
+# class UserCreate(BaseModel):
+#     username: str
+#     password: str
+
+# # ------------------------
+# # Upload folder
+# # ------------------------
+# UPLOAD_DIR = "uploads"
+# os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+# # ------------------------
+# # Load CSV
+# # ------------------------
+# medicine_list = []
+
+# try:
+#     df = pd.read_csv("data/modified_medicine_data.csv")
+#     medicine_list = df["medicine_name"].dropna().str.lower().tolist()
+#     print("CSV Loaded:", len(medicine_list))
+# except Exception as e:
+#     print("CSV ERROR:", e)
+
+# # ------------------------
+# # DB
+# # ------------------------
+# def get_db():
+#     db = SessionLocal()
+#     try:
+#         yield db
+#     finally:
+#         db.close()
+
+# # ------------------------
+# # AUTH
+# # ------------------------
+# def get_current_user(token: str = Depends(oauth2_scheme)):
+#     try:
+#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+#         username = payload.get("sub")
+
+#         if not username:
+#             raise HTTPException(status_code=401, detail="Invalid token")
+
+#         return username
+
+#     except JWTError:
+#         raise HTTPException(status_code=401, detail="Invalid token")
+
+# # ------------------------
+# # ROUTES
+# # ------------------------
+# @app.get("/")
+# def home():
+#     return {"message": "API Running 🚀"}
+
+# # ------------------------
+# # REGISTER
+# # ------------------------
+# @app.post("/register")
+# def register(user: UserCreate, db: Session = Depends(get_db)):
+#     try:
+#         if len(user.password) < 6:
+#             raise HTTPException(status_code=400, detail="Password too short")
+
+#         if len(user.password) > 72:
+#             raise HTTPException(status_code=400, detail="Max 72 characters allowed")
+
+#         if not user.username.strip():
+#             raise HTTPException(status_code=400, detail="Invalid username")
+
+#         if db.query(User).filter(User.username == user.username).first():
+#             raise HTTPException(status_code=400, detail="Username exists")
+
+#         new_user = User(
+#             username=user.username,
+#             password=hash_password(user.password)
+#         )
+
+#         db.add(new_user)
+#         db.commit()
+
+#         return {"message": "Registered successfully"}
+
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         print("REGISTER ERROR:", e)
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# # ------------------------
+# # LOGIN
+# # ------------------------
+# @app.post("/login")
+# def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+#     try:
+#         user = db.query(User).filter(User.username == form_data.username).first()
+
+#         if not user:
+#             raise HTTPException(status_code=401, detail="User not found")
+
+#         if not verify_password(form_data.password, user.password):
+#             raise HTTPException(status_code=401, detail="Wrong password")
+
+#         token = create_access_token(data={"sub": user.username})
+
+#         return {"access_token": token, "token_type": "bearer"}
+
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         print("LOGIN ERROR:", e)
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# # ------------------------
+# # PREDICT (OCR DISABLED SAFE VERSION)
+# # ------------------------
+# @app.post("/predict")
+# async def predict(
+#     file: UploadFile = File(...),
+#     username: str = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         if not file.content_type.startswith("image/"):
+#             raise HTTPException(status_code=400, detail="Upload an image")
+
+#         contents = await file.read()
+
+#         if len(contents) > 3 * 1024 * 1024:
+#             raise HTTPException(status_code=400, detail="File too large")
+
+#         filename = f"{uuid4()}.png"
+#         file_path = os.path.join(UPLOAD_DIR, filename)
+
+#         with open(file_path, "wb") as f:
+#             f.write(contents)
+
+#         # Basic image processing (still useful)
+#         image = Image.open(io.BytesIO(contents)).convert("RGB")
+#         img_array = np.array(image)
+
+#         gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+#         blur = cv2.GaussianBlur(gray, (5, 5), 0)
+
+#         thresh = cv2.threshold(
+#             blur, 0, 255,
+#             cv2.THRESH_BINARY + cv2.THRESH_OTSU
+#         )[1]
+
+#         # 🚨 OCR DISABLED
+#         raw_text = ""
+
+#         if not raw_text:
+#             return {
+#                 "medicine_name": "Unknown",
+#                 "status": "OCR Disabled (Demo Mode)"
+#             }
+
+#         # (This part won't run unless OCR enabled)
+#         best_score = 0
+#         best_match = "Unknown"
+
+#         for med in medicine_list[:5000]:
+#             score = fuzz.partial_ratio(med, raw_text)
+
+#             if score > best_score:
+#                 best_score = score
+#                 best_match = med
+
+#         status = "Real Medicine" if best_score >= 70 else "Possible Fake"
+
+#         scan = ScanHistory(
+#             username=username,
+#             medicine_name=best_match,
+#             detected_text=raw_text,
+#             status=status,
+#             image=file_path
+#         )
+
+#         db.add(scan)
+#         db.commit()
+
+#         return {
+#             "medicine_name": best_match,
+#             "status": status
+#         }
+
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         print("PREDICT ERROR:", e)
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# # ------------------------
+# # HISTORY
+# # ------------------------
+# @app.get("/history", response_model=list[ScanHistoryResponse])
+# def history(
+#     username: str = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     try:
+#         return db.query(ScanHistory).filter(
+#             ScanHistory.username == username
+#         ).all()
+
+#     except Exception as e:
+#         print("HISTORY ERROR:", e)
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+
+
+
+
+
+
+
+
+
+
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -374,13 +659,34 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # ------------------------
-# Load CSV
+# 🔥 SAFE OCR LOADING
+# ------------------------
+reader = None
+
+def get_reader():
+    global reader
+    try:
+        if reader is None:
+            print("Loading EasyOCR (first request only)...")
+            import easyocr   # 🔥 import INSIDE (prevents crash at startup)
+            reader = easyocr.Reader(['en'], gpu=False)
+        return reader
+    except Exception as e:
+        print("OCR LOAD ERROR:", e)
+        return None
+
+# ------------------------
+# CSV LOAD (LIMITED)
 # ------------------------
 medicine_list = []
 
 try:
     df = pd.read_csv("data/modified_medicine_data.csv")
     medicine_list = df["medicine_name"].dropna().str.lower().tolist()
+
+    # 🔥 LIMIT for performance (VERY IMPORTANT)
+    medicine_list = medicine_list[:5000]
+
     print("CSV Loaded:", len(medicine_list))
 except Exception as e:
     print("CSV ERROR:", e)
@@ -423,61 +729,47 @@ def home():
 # ------------------------
 @app.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    try:
-        if len(user.password) < 6:
-            raise HTTPException(status_code=400, detail="Password too short")
+    if len(user.password) < 6:
+        raise HTTPException(status_code=400, detail="Password too short")
 
-        if len(user.password) > 72:
-            raise HTTPException(status_code=400, detail="Max 72 characters allowed")
+    if len(user.password) > 72:
+        raise HTTPException(status_code=400, detail="Max 72 characters allowed")
 
-        if not user.username.strip():
-            raise HTTPException(status_code=400, detail="Invalid username")
+    if not user.username.strip():
+        raise HTTPException(status_code=400, detail="Invalid username")
 
-        if db.query(User).filter(User.username == user.username).first():
-            raise HTTPException(status_code=400, detail="Username exists")
+    if db.query(User).filter(User.username == user.username).first():
+        raise HTTPException(status_code=400, detail="Username exists")
 
-        new_user = User(
-            username=user.username,
-            password=hash_password(user.password)
-        )
+    new_user = User(
+        username=user.username,
+        password=hash_password(user.password)
+    )
 
-        db.add(new_user)
-        db.commit()
+    db.add(new_user)
+    db.commit()
 
-        return {"message": "Registered successfully"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print("REGISTER ERROR:", e)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    return {"message": "Registered successfully"}
 
 # ------------------------
 # LOGIN
 # ------------------------
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    try:
-        user = db.query(User).filter(User.username == form_data.username).first()
+    user = db.query(User).filter(User.username == form_data.username).first()
 
-        if not user:
-            raise HTTPException(status_code=401, detail="User not found")
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
 
-        if not verify_password(form_data.password, user.password):
-            raise HTTPException(status_code=401, detail="Wrong password")
+    if not verify_password(form_data.password, user.password):
+        raise HTTPException(status_code=401, detail="Wrong password")
 
-        token = create_access_token(data={"sub": user.username})
+    token = create_access_token(data={"sub": user.username})
 
-        return {"access_token": token, "token_type": "bearer"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print("LOGIN ERROR:", e)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    return {"access_token": token, "token_type": "bearer"}
 
 # ------------------------
-# PREDICT (OCR DISABLED SAFE VERSION)
+# 🔥 PREDICT (REAL + SAFE)
 # ------------------------
 @app.post("/predict")
 async def predict(
@@ -491,7 +783,8 @@ async def predict(
 
         contents = await file.read()
 
-        if len(contents) > 3 * 1024 * 1024:
+        # 🔥 STRICT LIMIT (avoid crash)
+        if len(contents) > 2 * 1024 * 1024:
             raise HTTPException(status_code=400, detail="File too large")
 
         filename = f"{uuid4()}.png"
@@ -500,32 +793,34 @@ async def predict(
         with open(file_path, "wb") as f:
             f.write(contents)
 
-        # Basic image processing (still useful)
+        # Process image
         image = Image.open(io.BytesIO(contents)).convert("RGB")
         img_array = np.array(image)
 
         gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
 
-        thresh = cv2.threshold(
-            blur, 0, 255,
-            cv2.THRESH_BINARY + cv2.THRESH_OTSU
-        )[1]
+        # 🔥 LOAD OCR SAFELY
+        reader = get_reader()
 
-        # 🚨 OCR DISABLED
-        raw_text = ""
-
-        if not raw_text:
+        if reader is None:
             return {
                 "medicine_name": "Unknown",
-                "status": "OCR Disabled (Demo Mode)"
+                "status": "OCR failed (server limit)"
             }
 
-        # (This part won't run unless OCR enabled)
+        result = reader.readtext(thresh, detail=0)
+
+        raw_text = " ".join(result).lower()
+
+        if not raw_text:
+            return {"medicine_name": "Unknown", "status": "No text detected"}
+
+        # 🔥 FAST MATCHING
         best_score = 0
         best_match = "Unknown"
 
-        for med in medicine_list[:5000]:
+        for med in medicine_list:
             score = fuzz.partial_ratio(med, raw_text)
 
             if score > best_score:
@@ -534,6 +829,7 @@ async def predict(
 
         status = "Real Medicine" if best_score >= 70 else "Possible Fake"
 
+        # Save history
         scan = ScanHistory(
             username=username,
             medicine_name=best_match,
@@ -550,8 +846,6 @@ async def predict(
             "status": status
         }
 
-    except HTTPException:
-        raise
     except Exception as e:
         print("PREDICT ERROR:", e)
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -564,11 +858,6 @@ def history(
     username: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    try:
-        return db.query(ScanHistory).filter(
-            ScanHistory.username == username
-        ).all()
-
-    except Exception as e:
-        print("HISTORY ERROR:", e)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    return db.query(ScanHistory).filter(
+        ScanHistory.username == username
+    ).all()
