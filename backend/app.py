@@ -52,10 +52,10 @@ app.add_middleware(
 # ------------------------
 # Upload folder
 # ------------------------
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # ------------------------
 # Lazy OCR Loader
@@ -72,7 +72,7 @@ def get_reader():
 # Load CSV
 # ------------------------
 try:
-    df = pd.read_csv("data/modified_medicine_data.csv")
+    df = pd.read_csv("backend/data/modified_medicine_data.csv")
     medicine_list = df["medicine_name"].str.lower().tolist()
 except Exception as e:
     print("CSV load error:", e)
