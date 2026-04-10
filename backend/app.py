@@ -72,7 +72,7 @@ def get_reader():
 # Load CSV
 # ------------------------
 try:
-    df = pd.read_csv("backend/data/modified_medicine_data.csv")
+    df = pd.read_csv("data/modified_medicine_data.csv")
     medicine_list = df["medicine_name"].str.lower().tolist()
 except Exception as e:
     print("CSV load error:", e)

@@ -1,0 +1,22 @@
+services:
+  backend:
+    build: ./backend
+    container_name: fake_medicine_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+      - ./backend/medicine_scans.db:/app/medicine_scans.db
+    env_file:
+      - ./backend/.env
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: fake_medicine_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: always
