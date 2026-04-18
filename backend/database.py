@@ -9,11 +9,16 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-else:
+
+if not DATABASE_URL:
     DATABASE_URL = "sqlite:///./medicine_scans.db"
+    print("No DATABASE_URL found — using local SQLite.")
 
 if "sqlite" in DATABASE_URL:
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
 else:
     engine = create_engine(DATABASE_URL)
 

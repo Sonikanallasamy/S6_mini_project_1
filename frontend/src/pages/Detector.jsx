@@ -2,6 +2,8 @@ import { useState } from "react";
 import Navbar from "../components/Navbar.jsx";
 import History from "../components/History.jsx";
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 function Detector() {
 
 const [file, setFile] = useState(null);
@@ -35,7 +37,7 @@ try {
 
 const token = localStorage.getItem("token");
 
-const response = await fetch("http://127.0.0.1:8000/predict", {
+const response = await fetch(`${API_BASE}/predict`, {
 method: "POST",
 headers:{
 Authorization:`Bearer ${token}`
@@ -81,7 +83,6 @@ return (
 
 <input type="file" onChange={handleFileChange} style={styles.fileInput}/>
 
-{/* IMAGE PREVIEW */}
 {imagePreview && (
   <img
     src={imagePreview}
@@ -107,7 +108,6 @@ Detect Medicine
 
 <h2>🔍 Detection Result</h2>
 
-{/* IMAGE IN RESULT */}
 {imagePreview && (
   <img
     src={imagePreview}
@@ -137,7 +137,6 @@ Detect Medicine
 </div>
 )}
 
-{/* HISTORY */}
 <History/>
 
 </div>
@@ -148,8 +147,6 @@ Detect Medicine
 body{
 margin:0;
 }
-
-/* BACKGROUND */
 
 .particle{
 position:absolute;
@@ -172,8 +169,6 @@ animation:floatParticle 8s infinite linear;
 100%{transform:translateY(0px);}
 }
 
-/* HEX */
-
 .hex{
 position:absolute;
 width:120px;
@@ -193,8 +188,6 @@ clip-path: polygon(
 .h2{top:65%;left:80%;}
 .h3{top:40%;left:10%;}
 
-/* ECG */
-
 .ecg{
 position:absolute;
 top:15%;
@@ -209,8 +202,6 @@ animation:ecgMove 3s infinite linear;
 0%{transform:translateX(-100%);}
 100%{transform:translateX(100%);}
 }
-
-/* SPINNER */
 
 .spinner{
 width:60px;

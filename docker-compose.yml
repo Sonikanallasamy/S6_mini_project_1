@@ -1,3 +1,5 @@
+# Local development only — HF Spaces ignores this file
+
 services:
   backend:
     build: ./backend
@@ -6,8 +8,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./backend/uploads:/app/uploads
-      - ./backend/medicine_scans.db:/app/medicine_scans.db
+      - easyocr_models:/app/models
     env_file:
       - ./backend/.env
     restart: always
@@ -20,3 +21,6 @@ services:
     depends_on:
       - backend
     restart: always
+
+volumes:
+  easyocr_models:

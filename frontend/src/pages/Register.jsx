@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 function Register(){
 
 const [username,setUsername] = useState("");
@@ -11,7 +13,7 @@ const navigate = useNavigate();
 const handleRegister = async () => {
 
 const response = await fetch(
-`http://127.0.0.1:8000/register?username=${username}&password=${password}`,
+`${API_BASE}/register?username=${username}&password=${password}`,
 { method:"POST" }
 );
 
@@ -73,8 +75,6 @@ Already have an account? <Link to="/">Login</Link>
 body{
 margin:0;
 }
-
-/* medicine icons */
 
 .pill{
 position:absolute;

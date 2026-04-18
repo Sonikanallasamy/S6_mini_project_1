@@ -55,3 +55,8 @@ uploads/
 
 
 *.db
+# EasyOCR downloaded models (baked into Docker image, not needed in git)
+backend/models/
+
+# Frontend build output (generated at deploy time)
+frontend/dist/

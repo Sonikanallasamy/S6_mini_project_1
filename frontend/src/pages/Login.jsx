@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 function Login(){
 
 const [username,setUsername] = useState("");
@@ -14,7 +16,7 @@ const formData = new URLSearchParams();
 formData.append("username",username);
 formData.append("password",password);
 
-const response = await fetch("http://127.0.0.1:8000/login",{
+const response = await fetch(`${API_BASE}/login`,{
 method:"POST",
 headers:{
 "Content-Type":"application/x-www-form-urlencoded"
@@ -82,8 +84,6 @@ Don't have an account? <Link to="/register">Register</Link>
 body{
 margin:0;
 }
-
-/* medicine icons */
 
 .pill{
 position:absolute;

@@ -6,18 +6,16 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True)
-    password = Column(String)
+    username = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False)
 
 
 class ScanHistory(Base):
     __tablename__ = "scan_history"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String)
-    medicine_name = Column(String)
-    detected_text = Column(Text)
-    status = Column(String)
-
-    # ✅ STORE FILE PATH (NOT BASE64)
+    username = Column(String, nullable=False)
+    medicine_name = Column(String, nullable=False)
+    detected_text = Column(Text, nullable=True)
+    status = Column(String, nullable=False)
     image = Column(String, nullable=True)
